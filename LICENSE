@@ -19,3 +19,15 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+
+3rd party licences
+Parts are based on 3rd parties with their respective licences.
+ 1. The DMX the PIO code 
+    https://github.com/jostlowe/Pico-DMX/blob/main/LICENSE
+    BSD 3-Clause License
+    Copyright (c) 2021, Jostein Løwer
+
+ 2. The rp2040 DMA code
+    https://github.com/drtimcollins/RP2040-DMA/blob/main/LICENSE.md
+    MIT 
+    Copyright (c) 2023 Dr Tim Collins
