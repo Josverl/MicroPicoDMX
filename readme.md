@@ -7,6 +7,12 @@ datasheets.raspberrypi.org/rp2040/rp2040-datasheet.pdf
 https://datasheets.raspberrypi.com/pico/raspberry-pi-pico-python-sdk.pdf
 
 
+# Wokwi 
+
+https://wokwi.com/projects/381858468736889857
+
+
+
 Based on:
 
 - [jostlowe/Pico-DMX: A library for inputting and outputting the DMX512-A lighting control protocol from a Raspberry Pi Pico (github.com)](https://github.com/jostlowe/Pico-DMX)

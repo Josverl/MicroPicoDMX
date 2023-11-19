@@ -1,13 +1,13 @@
 {
 	"folders": [
-		{
-			"path": "."
-		},
-		{
-			"name": "Pico (W) Remote Workspace",
-			"uri": "pico:"
-		}
-	],
+        {
+            "path": "."
+        },
+        {
+            "name": "Pico (W) Remote Workspace",
+            "uri": "pico:"
+        }
+    ],
     "settings": {
         "python.languageServer": "Pylance",
         "micropico.syncFolder": "src"
