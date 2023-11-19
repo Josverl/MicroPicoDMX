@@ -1,1 +1,9 @@
 .venv
+
+# ignore most typestubs
+typings
+.vscode/Pico-W-Stub/*
+# butinclude tthe custom rp2 ones
+!.vscode/Pico-W-Stub/rp2
+
+scratch

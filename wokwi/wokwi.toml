@@ -1,0 +1,7 @@
+[wokwi]
+version = 1
+firmware = "rp2-pico-v1.20.0.uf2"
+elf = ""
+
+gdbServerPort = 3333
+# rfc2217ServerPort = 4000

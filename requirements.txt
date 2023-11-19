@@ -1,0 +1,2 @@
+littlefs-python
+micropython-rp2-rpi_PICO_W-stubs 
