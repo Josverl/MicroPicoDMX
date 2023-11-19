@@ -16,6 +16,7 @@ from typing import Callable
 from _rp2 import *
 from _typeshed import Incomplete
 
+
 _PROG_DATA: Incomplete
 _PROG_OFFSET_PIO0: Incomplete
 _PROG_OFFSET_PIO1: Incomplete
