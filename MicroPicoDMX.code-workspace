@@ -2,14 +2,33 @@
 	"folders": [
         {
             "path": "."
-        },
-        {
-            "name": "Pico (W) Remote Workspace",
-            "uri": "pico:"
         }
     ],
     "settings": {
         "python.languageServer": "Pylance",
-        "micropico.syncFolder": "src"
+        "micropico.syncFolder": "src",
+        "workbench.colorCustomizations": {
+            "activityBar.activeBackground": "#e48578",
+            "activityBar.background": "#e48578",
+            "activityBar.foreground": "#15202b",
+            "activityBar.inactiveForeground": "#15202b99",
+            "activityBarBadge.background": "#afefb7",
+            "activityBarBadge.foreground": "#15202b",
+            "commandCenter.border": "#15202b99",
+            "editorGroup.border": "#e48578",
+            "panel.border": "#e48578",
+            "sash.hoverBorder": "#e48578",
+            "statusBar.background": "#dc5f4d",
+            "statusBar.foreground": "#15202b",
+            "statusBarItem.hoverBackground": "#ce3d28",
+            "statusBarItem.remoteBackground": "#dc5f4d",
+            "statusBarItem.remoteForeground": "#15202b",
+            "tab.activeBorder": "#e48578",
+            "titleBar.activeBackground": "#dc5f4d",
+            "titleBar.activeForeground": "#15202b",
+            "titleBar.inactiveBackground": "#dc5f4d99",
+            "titleBar.inactiveForeground": "#15202b99"
+        },
+        "peacock.color": "#dc5f4d"
     }
 }
