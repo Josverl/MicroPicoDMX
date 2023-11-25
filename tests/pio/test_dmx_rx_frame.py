@@ -3,22 +3,9 @@ from typing import List
 
 import pytest
 from pioemu import State, emulate
+from helpers import print_trace, DMXTestFrame
 
 PioCode = List[int]
-
-def print_trace(steps, last=-10):
-    print("\nClk, PC,      GPIO ->      GPIO,        X, ISR.....(l)")
-    for before, after in steps[last:]:
-        isr = f"{after.input_shift_register.contents:b}"[:after.input_shift_register.counter]
-        for i in reversed((4, 8, 16, 20, 24, 28)):
-            isr = isr[:i] + ' ' + isr[i:]
-        print(
-            f"{before.clock:>3}, {before.program_counter:>2}, {before.pin_values:>9_b} -> {after.pin_values:>9_b} {after.x_register:>9_b} {isr:<35} {after.input_shift_register.counter} "
-        )
-    current = steps[-1][1]
-    print(
-        f"{current.clock:>3}, {current.program_counter:>2}, {current.pin_values:>9_b}"
-    )
 
 # List of breakpoints in the PIO code
 BP_BREAK = 3
@@ -27,34 +14,6 @@ BP_STARTBIT = 5
 BP_READBITS = 8
 BP_STOPBITS = 9
 
-
-from typing import List, Union
-
-
-def DMXTestFrame(t=0,value:Union[int,List]=0, add_break = True, add_mab = True):
-    """Generates one or more DMX frames for testing"""
-    l = []
-    # generate a list 
-    if isinstance(value, list):
-        for i in range(len(value)):
-            f = DMXTestFrame(t, value[i], add_break, add_mab)
-            l.extend(f)
-            add_break, add_mab = False, False
-            # next frame starts 4us after last bit of this frame
-            t = f[-1][0] + 4
-        return l
-    # generate a single frame
-    if add_break:
-        l.append((t, 0b0000_0000))  # BREAK
-        add_mab = True
-    if add_mab:
-        l.append((t+150, 0b0000_0001))  # MAB
-    l.append((t+150 + 16, 0b0000_0000))  # 1 Start bit
-    for i in range(8):
-        l.append((t+150 +20 + i*4, (value >> i) & 1))
-    l.append((t+ 150 +20 + 32, 0b0000_0001))  # 2 stop bits
-    l.append((t+ 150 +20 + 36, 0b0000_0001))  # 2 stop bits
-    return l
 
 # time in us, 8 bit value
 # GPIO 0 = bit 0 , is rightmost bit
