@@ -1,0 +1,69 @@
+# Script: Hello PIO
+#
+
+# Make a full reset of the emulator.
+reset
+
+
+# The code.
+
+enter -a 00 -v 0xe03d
+enter -a 01 -v 0x00c0
+enter -a 02 -v 0x0141
+enter -a 03 -v 0x20a0
+enter -a 04 -v 0x2120
+enter -a 05 -v 0xe327
+enter -a 06 -v 0x4001
+enter -a 07 -v 0x0246
+enter -a 08 -v 0x20a0
+enter -a 09 -v 0x8020
+
+
+########
+# Init program (analoguous to logic_analyser_init() in logic_analyser.c).
+########
+
+# SM Config Set In Pins(base=pin_base).
+pinctrl --pio=0 --sm=0 --in-base=0  --jmp-pin=0
+
+# GPIO init pin.
+gpio --pio=0 --gpio=0 --init
+
+# Configure Wrap.
+wrap --pio=0 --sm=0 --wrap=9 --target=4
+
+# Configure Clock Divider, here as 1.0 (maximum speed).
+clock --pio=0 --sm=0 --divider=1.0
+
+
+########
+# Initialize SM (analoguous to function pio_sm_init() in Pico C SDK).
+########
+
+# Disable state machine 0 of PIO 0 while executing the following
+# commands.
+sm --pio=0 --sm=0 --enable=false
+
+# Clear FIFOs.
+fifo --pio=0 --sm=0 --clear
+
+# Clear FIFO debug flags.
+fifo --pio=0 --sm=0 --clear-tx-stall
+fifo --pio=0 --sm=0 --clear-tx-over
+fifo --pio=0 --sm=0 --clear-rx-under
+fifo --pio=0 --sm=0 --clear-rx-stall
+
+# Restart SM.
+sm --pio=0 --sm=0 --restart
+
+# Restart clock.
+clock --pio=0 --sm=0 --restart
+
+# Set instruction pointer (PC) to address 0.
+registers --address=0x00
+
+# enable 
+sm --pio=0 --sm=0 +e
+
+# Done.
+quit

@@ -1,2 +1,7 @@
 littlefs-python
 micropython-rp2-rpi_PICO_W-stubs 
+
+
+# dev tools
+rp2040-pio-emulator
+adafruit-circuitpython-pioasm

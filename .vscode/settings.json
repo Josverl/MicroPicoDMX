@@ -13,5 +13,10 @@
     "python.analysis.extraPaths": [
         "typings",
         ".vscode\\Pico-W-Stub"
-    ]
+    ],
+    "python.testing.pytestArgs": [
+        "tests"
+    ],
+    "python.testing.unittestEnabled": false,
+    "python.testing.pytestEnabled": true
 }

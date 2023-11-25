@@ -26,41 +26,63 @@ pin_dmx_rx = Pin(14, Pin.IN)
 
 
 
-@asm_pio(set_init=PIO.OUT_LOW, sideset_init=PIO.OUT_LOW, out_init=PIO.OUT_LOW, autopull=True)
+
+@asm_pio(
+    set_init=PIO.OUT_LOW,
+    sideset_init=PIO.OUT_LOW,
+    out_init=PIO.OUT_LOW,
+    # autopull=True,  # ?
+    out_shiftdir=PIO.SHIFT_RIGHT,  # ?
+    push_thresh=8,
+)
 # fmt: off
 def dmx_send():
-    """PIO program to send a DMX Universe frame.
-    For DMX output, the PIO module automatically transmits a Break and MAB every time a new frame is transmitted. 
-    As soon as the Break and MAB are transmitted, the PIO module starts pulling bytes from memory using DMA.
-
-    PIO program for outputting the DMX lighting protocol.
-
-    Compliant with ANSI E1.11-2008 (R2018)
-    The program assumes a PIO clock frequency of exactly 1MHz
-
-    Author: Jostein Løwer, github: jostlowe
-    SPDX-License-Identifier: BSD-3-Clause
     """
-    # BREAK_LOOPS = (92 / 4) -1
-    # Assert break condition
-    # Receiver DMX break signal is 88us, so we need to loop 22 times to get 88us
-    # TODO: Actually should be at least 92us
-    set(x, 21)               .side(0)       # Preload bit counter, assert break condition for 176us
+    - valid values for each of the data channels is:  0-255
+    Minimum universe length is 10 channels / slots
 
-    label("breakloop")                      # Loop 22 times, each loop iteration is 8 cycles.
+    The pio Statemachine must be reset before sending a new universe of data,
+    this will send the BREAK and the MAB signals
+    the universe is an bytearray of a 1 + 512 bytes
+    The first byte is the START_CODE , the next 512 bytes are the data channels
+    - the START_CODE is 0x00 for DMX Data Packets
+    - the START_CODE is 0xCC for RDM Data Packets
+    - the START_CODE is 0xFE for RDM Discovery Data Packets
+
+    Usage example:
+
+    ```
+    sm_dmx_tx = StateMachine(
+        1,
+        dmx_send,
+        freq=1_000_000,
+        set_base=pin_dmx_tx,
+        out_base=pin_dmx_tx,
+        sideset_base=pin_dmx_tx,
+    )
+    sm_dmx_tx.active(1)
+    ```	
+
+    """
+    # Assert break condition
+    # Sender DMX break signal is 92us >, so we need to loop at least 92 / 8 = 12 times
+    # TODO: Actually should be at least 92us
+    set(x, 21)      .side(0)                # BREAK condition for 176us
+
+    label("breakloop")                      # Loop X times, each loop iteration is 8 cycles.
     jmp(x_dec, "breakloop")             [7] # Each loop iteration is 8 cycles.
 
-    # Assert start condition
-    nop()                    .side(1)   [7]  # Assert MAB. 8 cycles nop and 8 cycles stop-bits = 16us
+    nop()                    .side(1)   [7] # Assert MAB. 8 cycles nop and 8 cycles stop-bits = 16us
 
     # Send data frame
     wrap_target()
-    pull()                   .side(1)   [7] # Assert 2 stop bits, or stall with line in idle state
-    set(x, 7)                .side(0)   [3] # load bit counter, assert start bit for 4 clocks
+    
+    pull()                   .side(1)   [7] # 2 STOP bits,  1 + 7 clocks,   or stall with line in idle state (extending MAB) 
+    set(x, 7)                .side(0)   [3] # 1 START BIT  1 + 4 clocks load bit counter, assert start bit for 4 clocks
 
     label("bitloop")
-    out(pins, 1)                            # Shift 1 bit from OSR to the first OUT pin
-    jmp(x_dec, "bitloop")    .side(0)   [2] # Each loop iteration is 4 cycles.
+    out(pins, 1)                        [2]  # Shift 1 bit from OSR to the first OUT pin
+    jmp(x_dec, "bitloop")                    # Each loop iteration is 4 cycles.
 
     wrap()
 # fmt: on
@@ -98,19 +120,7 @@ def dmx_receive():
     # 
     push() # Should probably do error checking on the stop bits some time in the future....
 
-# Create PIO state machine
-# sm0 = StateMachine(0, dmx_receive, freq=1000000, in_base=pin_dmx_rx)
 
-
-# # Usage example
-# sm1 = StateMachine(
-#     1,
-#     dmx_send,
-#     freq=1_000_000,
-#     set_base=pin_dmx_tx,
-#     out_base=pin_dmx_tx,
-#     sideset_base=pin_dmx_tx,
-# )
 # sm1.active(1)
 
 
