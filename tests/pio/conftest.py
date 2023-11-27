@@ -5,13 +5,14 @@ from pioemu import State, emulate
 
 PioCode = List[int]
 
+PIO_RX_PROGRAM = [0xE03D, 0xC0, 0x141, 0x20A0, 0x2120, 0xE327, 0x4001, 0x246, 0x20A0, 0x8020]
 
 @pytest.fixture(scope="module")
 def pio_code():
     """the dmx receive PIO code"""
     # setup code
     # TODO Assemble the code from source
-    assembled = [0xE03D, 0xC0, 0x141, 0x20A0, 0x2120, 0xE327, 0x4001, 0x246, 0x20A0, 0x8020]
+    assembled = PIO_RX_PROGRAM
     yield assembled
     # teardown code
 
