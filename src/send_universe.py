@@ -3,133 +3,55 @@
 UNIVERSE_LENGTH = 512
 
 import time
+from array import array
+from typing import Optional
 
 from machine import Pin
-from rp2 import PIO, StateMachine, asm_pio
-
+from rp2 import StateMachine
 # -----------------------------------------------
 # add type hints for the rp2.PIO Instructions
 from typing_extensions import TYPE_CHECKING
+
+from pio_dmx import dmx_receive, dmx_send
 
 if TYPE_CHECKING:
     from rp2.asm_pio import *
 # -----------------------------------------------
 
 # -----------------------------------------------
-# Wiring scema for the DMX TX
-pin_dmx_tx = Pin(15, Pin.OUT)
-pin_dmx_rx = Pin(14, Pin.IN)
+# Wiring schema for the DMX TX
+pin_dmx_tx = Pin(15, Pin.OUT)  # send data to the DMX bus
+pin_dmx_rx = Pin(14, Pin.IN, pull=Pin.PULL_DOWN)  # receive data from the DMX bus
 
-
-
-# NOTE: In DMX the slots are identified by their position in the frame, the sender does not need to send the channel number at all.
-
-
-
-
-@asm_pio(
-    set_init=PIO.OUT_LOW,
-    sideset_init=PIO.OUT_LOW,
-    out_init=PIO.OUT_LOW,
-    # autopull=True,  # ?
-    out_shiftdir=PIO.SHIFT_RIGHT,  # ?
-    push_thresh=8,
-)
-# fmt: off
-def dmx_send():
-    """
-    - valid values for each of the data channels is:  0-255
-    Minimum universe length is 10 channels / slots
-
-    The pio Statemachine must be reset before sending a new universe of data,
-    this will send the BREAK and the MAB signals
-    the universe is an bytearray of a 1 + 512 bytes
-    The first byte is the START_CODE , the next 512 bytes are the data channels
-    - the START_CODE is 0x00 for DMX Data Packets
-    - the START_CODE is 0xCC for RDM Data Packets
-    - the START_CODE is 0xFE for RDM Discovery Data Packets
-
-    Usage example:
-
-    ```
-    sm_dmx_tx = StateMachine(
-        1,
-        dmx_send,
-        freq=1_000_000,
-        set_base=pin_dmx_tx,
-        out_base=pin_dmx_tx,
-        sideset_base=pin_dmx_tx,
-    )
-    sm_dmx_tx.active(1)
-    ```	
-
-    """
-    # Assert break condition
-    # Sender DMX break signal is 92us >, so we need to loop at least 92 / 8 = 12 times
-    # TODO: Actually should be at least 92us
-    set(x, 21)      .side(0)                # BREAK condition for 176us
-
-    label("breakloop")                      # Loop X times, each loop iteration is 8 cycles.
-    jmp(x_dec, "breakloop")             [7] # Each loop iteration is 8 cycles.
-
-    nop()                    .side(1)   [7] # Assert MAB. 8 cycles nop and 8 cycles stop-bits = 16us
-
-    # Send data frame
-    wrap_target()
-    
-    pull()                   .side(1)   [7] # 2 STOP bits,  1 + 7 clocks,   or stall with line in idle state (extending MAB) 
-    set(x, 7)                .side(0)   [3] # 1 START BIT  1 + 4 clocks load bit counter, assert start bit for 4 clocks
-
-    label("bitloop")
-    out(pins, 1)                        [2]  # Shift 1 bit from OSR to the first OUT pin
-    jmp(x_dec, "bitloop")                    # Each loop iteration is 4 cycles.
-
-    wrap()
-# fmt: on
-
-@asm_pio(set_init=0, sideset_init=0)
-def dmx_receive():
-    """PIO program to receive a DMX Universe frame of 512 channels.	
-
-    """
-    # Constants
-    dmx_bit = 4  # As DMX has a baudrate of 250.000kBaud, a single bit is 4us
-
-    # Break loop 
-    # Receiver DMX break signal is 88us, so we need to loop 22 times to get 88us
-    label("break_reset")
-    set(x, 29)
-    label("break_loop")
-    jmp(pin, "break_reset")                 # Go back to start if pin goes high during the break
-    jmp(x_dec, "break_loop")            [1] # Decrease the counter and go back to break loop if x>0 so that the break is not done
-    wait(1, pin, 0)                         # Stall until line goes high for the Mark-After-Break (MAB)
-
-    # Data loop
-    label("wrap_target")
-    wait(0, pin, 0)                         # Stall until start bit is asserted
-    set(x, 7)                     [dmx_bit] # Preload bit counter, then delay until halfway through
-
-    label("bitloop")
-    in_(pins, 1)                            # Shift data bit into ISR
-    jmp(x_dec, "bitloop")       [dmx_bit-2] # Loop 8 times, each loop iteration is 4us
-
-    # Stop bits
-    wait(1, pin, 0)                         # Wait for pin to go high for stop bits
-
-    in_(null, 24)                           # Push 24 more bits into the ISR so that our one byte is at the position where the DMA expects it
-    # 
-    push() # Should probably do error checking on the stop bits some time in the future....
-
-
-# sm1.active(1)
+max485_send = Pin(12, Pin.OUT, Pin.PULL_DOWN)  # switch send/receive for the MAX485 chip
 
 
 class DMX:
-    def __init__(self, dmx_tx: Pin):
-        self.universe = bytearray(UNIVERSE_LENGTH + 1)
-        machine_nr = 0
+    """
+    DMX class for controlling DMX universe.
 
-        self.sm = StateMachine(
+    Args:
+        dmx_tx (Pin): The pin used for transmitting DMX data.
+        size (int, optional): The size of the DMX universe. Defaults to 512.
+        max485_send (Optional[Pin], optional): The pin used for controlling the MAX485 chip. Defaults to None.
+
+    Attributes:
+        universe (array): The DMX universe array.
+        sm_tx (StateMachine): The state machine for transmitting DMX data.
+        max485_send (Optional[Pin]): The pin used for controlling the MAX485 chip.
+
+    Methods:
+        send: Send the universe to the DMX bus.
+        set_channel: Set the value of a specific DMX channel.
+        get_channel: Get the value of a specific DMX channel.
+        blackout: Set all channels to 0.
+    """
+    
+    def __init__(self, dmx_tx: Pin , size:int = 512, max485_send: Optional[Pin] = None):
+        self.universe = array("B", [0] + [0] * (size))  # 1 start code + 512 channels
+        machine_nr = 0
+        self.max485_send = max485_send
+        self.sm_tx = StateMachine(
             machine_nr,
             dmx_send,
             freq=1_000_000,
@@ -137,31 +59,73 @@ class DMX:
             set_base=dmx_tx,
             sideset_base=dmx_tx
         )
-        self.sm.active(1)
+        self.sm_tx.active(0)
+        self.sm_tx.restart()
 
     def set_channel(self, channel: int, value: int):
+        """
+        Set the value of a specific DMX channel.
+
+        Args:
+            channel (int): The channel number.
+            value (int): The value to set.
+        """
         self.universe[channel] = value
 
 
     def get_channel(self, channel: int):
+        """
+        Get the value of a specific DMX channel.
+
+        Args:
+            channel (int): The channel number.
+
+        Returns:
+            int: The value of the channel.
+        """
         return self.universe[channel]
 
     def blackout(self):
+        """
+        Set all channels to 0.
+        """	
         for i in range(UNIVERSE_LENGTH):
             self.universe[i] = 0
 
-    def swoop(self):
-        for i in range(UNIVERSE_LENGTH):
-            self.universe[i] = i % 256
 
     def send(self):
-        self.sm.put(self.universe)
+        """
+        Send the universe to the DMX bus.
+        """	
+        if self.max485_send:
+            self.max485_send.on()  # switch the MAX485 chip for transmitting
+        self.sm_tx.restart()
+        self.sm_tx.active(1)            
+        self.sm_tx.put(self.universe)
+        if self.max485_send:
+            time.sleep_us(4 * 50)  # wait for the last 4 frames (4 x 44us and some) in the tx FIFO to be sent before switching the 485 driver
+            self.max485_send.off()  # switch the MAX485 chip for receiving
 
 
-dmx = DMX(pin_dmx_tx)
-dmx.swoop()
+#####################################################################
+p1 = Pin(1, Pin.OUT, value=0)  # Debugging aid to sync view on the the logic analyzer
+
+
+size = 512
+dmx = DMX(pin_dmx_tx, size=512, max485_send=max485_send)
+
+
+for i in range(1,512):
+    dmx.set_channel(i, i % 256)
+
+dmx.set_channel(0, 123)  # test Start Code
+
 
 while 1:
+    p1.on()
     dmx.send()
-    print("waiting")
-    time.sleep(0.1)
+
+    p1.off()
+    time.sleep_ms(300)
+
+

@@ -51,8 +51,9 @@ def dmx_receive():
 @asm_pio(
     set_init=PIO.OUT_LOW,
     sideset_init=PIO.OUT_LOW,
-    out_init=PIO.OUT_LOW, 
-    out_shiftdir=PIO.SHIFT_RIGHT,  # data is shifted out LSB first
+    out_init=PIO.OUT_LOW,
+    # autopull=True,  # ?
+    out_shiftdir=PIO.SHIFT_RIGHT,  # ?
     push_thresh=8,
 )
 # fmt: off
