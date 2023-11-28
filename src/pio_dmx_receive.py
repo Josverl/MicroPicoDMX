@@ -7,7 +7,7 @@ from typing_extensions import TYPE_CHECKING  # type: ignore
 if TYPE_CHECKING:
     from rp2.asm_pio import *
 # -----------------------------------------------
-# Wiring schema for the DMX TX
+
 
 
 # fmt: off

@@ -4,7 +4,7 @@
             "path": "."
         },
         {
-            "path": "../PIO_EMU"
+            "path": "../PIO_EMU/build"
         }
     ],
     "settings": {
@@ -32,6 +32,13 @@
             "titleBar.inactiveBackground": "#4f38a899",
             "titleBar.inactiveForeground": "#e7e7e799"
         },
-        "peacock.color": "#4f38a8"
+        "peacock.color": "#4f38a8",
+        "micropico.statusbarButtons": [
+            "status",
+            "run",
+            "softreset",
+            "togglepicowfs",
+            "runselection"
+        ]
     }
 }
