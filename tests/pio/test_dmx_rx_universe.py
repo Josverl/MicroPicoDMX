@@ -14,6 +14,7 @@ BP_STARTBIT = 5
 BP_READBITS = 8
 BP_STOPBITS = 9
 
+WRAP_TARGET = 4
 
 # time in us, 8 bit value
 # GPIO 0 = bit 0 , is rightmost bit
@@ -29,6 +30,18 @@ DMX_1F_SHORT_T = make_testframes(0, [0, 1, 2, 3, 4, 5, 6, 7, 8], timing=True)
             make_testframes(0, [0x00, 0xFF]),
             make_testframes(0, [0x00, 0xFF], timing=True),
             id="1 channel",
+        ),
+        pytest.param(
+            True,
+            make_testframes(0, [0x00] + [0xFF] * 2),
+            make_testframes(0, [0x00] + [0xFF] * 2, timing=True),
+            id="2 channel",
+        ),
+        pytest.param(
+            True,
+            make_testframes(0, [0x00] + [0xFF] * 3),
+            make_testframes(0, [0x00] + [0xFF] * 3, timing=True),
+            id="3 channel",
         ),
         pytest.param(
             True,
@@ -78,9 +91,9 @@ def test_2_3_startbit(detect, pio_code: PioCode, incoming_signals, inputs: List[
     # TEST Detect START Bit
 
     RUN_TO = BP_STARTBIT
+    channel = len(timings) -1
     state = State()
 
-    channel = len(timings) -1
     MIN_TICKS = timings[channel][0] - 4
     MAX_TICKS = timings[channel][0] + 50
 
@@ -107,7 +120,7 @@ def test_2_3_startbit(detect, pio_code: PioCode, incoming_signals, inputs: List[
         initial_state=state,
         input_source=incoming_signals,
         jmp_pin=0b0000_0001,
-        wrap_target= 4
+        wrap_target = WRAP_TARGET
     )
 
     steps = list(emu)
@@ -122,7 +135,7 @@ def test_2_3_startbit(detect, pio_code: PioCode, incoming_signals, inputs: List[
         # look for the start bit in the inputs
         found = get_test_pulse(inputs, state)
         assert found is not None, "Start bit not found in inputs"
-        assert found[3] == "START", "other signal detected START bit"
+        assert found[3] == "START", "other signal detected START bit, instead found {found[3]}"
     else:
         raise NotImplementedError("False Positive, Start bit detected")
 
@@ -149,7 +162,7 @@ def test_2_40_frame_startcode(detect, pio_code: PioCode, incoming_signals):
         initial_state=state,
         input_source=incoming_signals,
         jmp_pin=0b0000_0001,
-        wrap_target= 4,
+        wrap_target = WRAP_TARGET,
     )
 
     steps = list(emu)
@@ -200,7 +213,7 @@ def test_2_41_frame_channel(detect, pio_code: PioCode, incoming_signals, sample:
         initial_state=state,
         input_source=incoming_signals,
         jmp_pin=0b0000_0001,
-        wrap_target= 4,
+        wrap_target = WRAP_TARGET,
     )
 
     steps = list(emu)
@@ -245,7 +258,7 @@ def test_2_5_stopbits(detect, pio_code: PioCode, incoming_signals):
         initial_state=state,
         input_source=incoming_signals,
         jmp_pin=0b0000_0001,
-        wrap_target= 4,
+        wrap_target = WRAP_TARGET,
     )
 
     steps = list(emu)
