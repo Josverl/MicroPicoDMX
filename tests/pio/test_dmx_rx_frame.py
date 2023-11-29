@@ -2,7 +2,7 @@ import json
 from typing import List
 
 import pytest
-from helpers import TestFrame, get_test_pulse, make_testframes, print_trace
+from helpers import TestFrame, get_test_pulse, make_testframes, print_trace, emu_dmx_rx
 from pioemu import State, emulate
 
 PioCode = List[int]
@@ -34,6 +34,8 @@ DMX_MAB_GLITCH = [
 
 DMX_NO_STOP = make_testframes(0, START_CODE)[:-2] + [(300, 0b0000_0000)]
 
+
+
 @pytest.mark.parametrize(
     "detect, inputs",
     [
@@ -56,14 +58,7 @@ def test_1_detect_BREAK(pio_code: PioCode, inputs: List, incoming_signals, detec
     def detect_break(opcode, state: State):
         return state.program_counter == RUN_TO or state.clock > now + MAX_TICKS
 
-    emu = emulate(
-        pio_code,
-        stop_when=detect_break,
-        initial_state=state,
-        input_source=incoming_signals,
-        jmp_pin=0b0000_0001,
-        wrap_target= 4,
-    )
+    emu = emu_dmx_rx(pio_code, incoming_signals, state, detect_break)
 
     steps = list(emu)
     print_trace(steps,-20)
@@ -76,6 +71,7 @@ def test_1_detect_BREAK(pio_code: PioCode, inputs: List, incoming_signals, detec
     else:
         assert state.pin_directions < RUN_TO, "BREAK not detected"
         assert state.pin_values & 0b0000_0001 == 0b0000_0001, "Pin 0 DMX RX should be high"
+
 
 
 
@@ -102,14 +98,7 @@ def test_2_detect_MAB(pio_code: PioCode, inputs: List, incoming_signals, detect:
     def detect_MAB(opcode, state: State):
         return state.program_counter == RUN_TO or state.clock > now + MAX_TICKS
 
-    emu = emulate(
-        pio_code,
-        stop_when=detect_MAB,
-        initial_state=state,
-        input_source=incoming_signals,
-        jmp_pin=0b0000_0001,
-        wrap_target= 4,
-    )
+    emu = emu_dmx_rx(pio_code, incoming_signals, state, detect_MAB)
 
     steps = list(emu)
     print_trace(steps,-20)
@@ -145,14 +134,7 @@ def test_3_startbit(detect, pio_code: PioCode, incoming_signals, inputs:List[Tes
     def detect_startbit(opcode, state: State):
         return state.program_counter == RUN_TO or state.clock > now + MAX_TICKS
 
-    emu = emulate(
-        pio_code,
-        stop_when=detect_startbit,
-        initial_state=state,
-        input_source=incoming_signals,
-        jmp_pin=0b0000_0001,
-        wrap_target= 4,
-    )
+    emu = emu_dmx_rx(pio_code, incoming_signals, state, detect_startbit)
 
     steps = list(emu)
     print_trace(steps)
@@ -187,14 +169,7 @@ def test_4_readbits(detect, pio_code: PioCode, incoming_signals, inputs):
     def detect_startbit(opcode, state: State):
         return state.program_counter == RUN_TO or state.clock > now + MAX_TICKS
 
-    emu = emulate(
-        pio_code,
-        stop_when=detect_startbit,
-        initial_state=state,
-        input_source=incoming_signals,
-        jmp_pin=0b0000_0001,
-        wrap_target= 4,
-    )
+    emu = emu_dmx_rx(pio_code, incoming_signals, state,detect_startbit)
 
     steps = list(emu)
     print_trace(steps,-20)
@@ -228,17 +203,10 @@ def test_5_stopbits(detect, pio_code: PioCode, incoming_signals):
 
     now = state.clock
 
-    def detect_startbit(opcode, state: State):
+    def detect_stopbit(opcode, state: State):
         return state.program_counter == RUN_TO or state.clock > now + MAX_TICKS
 
-    emu = emulate(
-        pio_code,
-        stop_when=detect_startbit,
-        initial_state=state,
-        input_source=incoming_signals,
-        jmp_pin=0b0000_0001,
-        wrap_target= 4,
-    )
+    emu = emu_dmx_rx(pio_code, incoming_signals, state,detect_stopbit)
 
     steps = list(emu)
     print_trace(steps,-20)

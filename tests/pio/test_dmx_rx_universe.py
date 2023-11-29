@@ -2,7 +2,8 @@ import json
 from typing import List, Tuple
 
 import pytest
-from helpers import TestFrame, get_test_pulse, make_testframes, print_trace
+from helpers import (TestFrame, emu_dmx_rx, get_test_pulse, make_testframes,
+                     print_trace)
 from pioemu import State, emulate
 
 PioCode = List[int]
@@ -115,16 +116,7 @@ def test_2_3_startbit(detect, pio_code: PioCode, incoming_signals, inputs: List[
         if state.clock < MIN_TICKS: 
             return False
         return state.program_counter == RUN_TO or state.clock > now + MAX_TICKS
-
-    emu = emulate(
-        pio_code,
-        stop_when=detect_startbit,
-        initial_state=state,
-        input_source=incoming_signals,
-        jmp_pin=0b0000_0001,
-        wrap_target = WRAP_TARGET
-    )
-
+    emu = emu_dmx_rx(pio_code, incoming_signals, state, detect_startbit)
     steps = list(emu)
     print_trace(steps, since=MIN_TICKS)
     if steps:
@@ -157,15 +149,7 @@ def test_2_40_frame_startcode(detect, pio_code: PioCode, incoming_signals):
 
     def detect_startbit(opcode, state: State):
         return state.program_counter == RUN_TO or state.clock > now + MAX_TICKS
-
-    emu = emulate(
-        pio_code,
-        stop_when=detect_startbit,
-        initial_state=state,
-        input_source=incoming_signals,
-        jmp_pin=0b0000_0001,
-        wrap_target = WRAP_TARGET,
-    )
+    emu = emu_dmx_rx(pio_code, incoming_signals, state, detect_startbit)
 
     steps = list(emu)
     print_trace(steps, -20)
@@ -206,15 +190,7 @@ def test_2_41_frame_channel(detect, pio_code: PioCode, incoming_signals, sample:
         return (
             state.program_counter == RUN_TO and state.clock >= sample_ticks
         ) or state.clock > now + MAX_TICKS
-
-    emu = emulate(
-        pio_code,
-        stop_when=detect_data,
-        initial_state=state,
-        input_source=incoming_signals,
-        jmp_pin=0b0000_0001,
-        wrap_target = WRAP_TARGET,
-    )
+    emu = emu_dmx_rx(pio_code, incoming_signals, state, detect_data)
 
     steps = list(emu)
     print_trace(steps, -20)
@@ -261,22 +237,14 @@ def test_2_5_stopbits(detect, pio_code: PioCode, incoming_signals, timings: List
 
     now = state.clock
 
-    def detect_startbit(opcode, state: State):
+    def detect_stopbit(opcode, state: State):
         # only stop after the start of the desired sample time
         clear_RX_fifo(state, len(timings) -1)
         return (
             state.program_counter == RUN_TO and state.clock >= sample_ticks
         ) or state.clock > now + MAX_TICKS
         # return state.program_counter == RUN_TO or state.clock > now + MAX_TICKS
-
-    emu = emulate(
-        pio_code,
-        stop_when=detect_startbit,
-        initial_state=state,
-        input_source=incoming_signals,
-        jmp_pin=0b0000_0001,
-        wrap_target = WRAP_TARGET,
-    )
+    emu = emu_dmx_rx(pio_code, incoming_signals, state, detect_stopbit)
 
     steps = list(emu)
     print_trace(steps, -20)

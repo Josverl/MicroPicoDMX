@@ -1,11 +1,25 @@
 
 from typing import List, Tuple, Union
 
-from pioemu import State
+from pioemu import State, emulate
 
 TestFrame = Tuple[int, int, int, str]
 
+##################################################################################
+def emu_dmx_rx(pio_code, incoming_signals, state, detect_break):
+    emu = emulate(
+        pio_code,
+        stop_when=detect_break,
+        initial_state=state,
+        input_source=incoming_signals,
+        jmp_pin=0b0000_0001,
+        wrap_target= 4,
+        side_set_base=4,
+        side_set_count=2,
+    )
+    return emu
 
+##################################################################################
 def print_trace(steps, last=-10, *, since=0):
     """
     Prints the trace of the steps in the given list.
