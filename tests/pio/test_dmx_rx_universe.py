@@ -7,6 +7,12 @@ from pioemu import State, emulate
 
 PioCode = List[int]
 
+def clear_RX_fifo(state:State, channel:int):
+    if len(state.receive_fifo) == 4:
+        # pop per 4 channels
+        for i in range(4):
+            value = state.receive_fifo.popleft() >> 24
+            print(f"RECEIVED Channel {channel-4+i} Value: {value}")
 # List of breakpoints in the PIO code
 BP_BREAK = 3
 BP_MAB = 4
@@ -20,6 +26,7 @@ WRAP_TARGET = 4
 # GPIO 0 = bit 0 , is rightmost bit
 DMX_1F_SHORT = make_testframes(0, [0, 1, 2, 3, 4, 5, 6, 7, 8])
 DMX_1F_SHORT_T = make_testframes(0, [0, 1, 2, 3, 4, 5, 6, 7, 8], timing=True)
+
 
 
 @pytest.mark.parametrize(
@@ -104,12 +111,7 @@ def test_2_3_startbit(detect, pio_code: PioCode, incoming_signals, inputs: List[
         # so emulate the fifo being read
         # NOTE: Currently only 1/4 of the capacilty is used 
         # NOTE 2: Emulator does not currently support FIFO chaining 
-        if len(state.receive_fifo) == 4:
-            # pop per 4 channels
-            for i in range(4):
-                value = state.receive_fifo.popleft() >> 24
-                print(f"RECEIVED Channel {channel-4+i} Value: {value}")
-
+        clear_RX_fifo(state, channel)
         if state.clock < MIN_TICKS: 
             return False
         return state.program_counter == RUN_TO or state.clock > now + MAX_TICKS
@@ -187,24 +189,22 @@ def test_2_40_frame_startcode(detect, pio_code: PioCode, incoming_signals):
         pytest.param(True, DMX_1F_SHORT, id="normal"),
     ],
 )
-def test_2_41_frame_channel(detect, pio_code: PioCode, incoming_signals, sample: Tuple[int, int]):
-    sample_time = sample[0]
+def test_2_41_frame_channel(detect, pio_code: PioCode, incoming_signals, sample: TestFrame, inputs: List[TestFrame]):
+    sample_ticks = sample[0]
     sample_value = sample[1]
     RUN_TO = BP_READBITS
-    MAX_TICKS = sample_time + 1000
+    MAX_TICKS = sample_ticks + 1000
     state = State()
     now = state.clock
+    channel = len(inputs) -1
 
     def detect_data(opcode, state: State):
         # make sure the receive fifo does not fill up as that would block the test
         # so emulate the fifo being read
-        if len(state.receive_fifo) == 4:
-            # pop per 4 channels
-            for i in range(4):
-                value = state.receive_fifo.popleft() >> 24
+        clear_RX_fifo(state, channel)
         # only stop after the start of the desired sample time
         return (
-            state.program_counter == RUN_TO and state.clock >= sample_time
+            state.program_counter == RUN_TO and state.clock >= sample_ticks
         ) or state.clock > now + MAX_TICKS
 
     emu = emulate(
@@ -221,6 +221,7 @@ def test_2_41_frame_channel(detect, pio_code: PioCode, incoming_signals, sample:
     if steps:
         state = steps[-1][1]
     print(state)
+    found = get_test_pulse(inputs, state)
     # print the first 8 bits
     data = state.input_shift_register.contents >> 24
     print("Channel Data: {0} , 0x{0:x}, 0b{0:_b} ".format(data))
@@ -228,29 +229,45 @@ def test_2_41_frame_channel(detect, pio_code: PioCode, incoming_signals, sample:
     if detect:
         assert state.program_counter == RUN_TO
         assert data == sample_value, "incorrect channel data, expected {sample_value} got {data}"
+        assert found, "channel data not found in inputs"
+        assert found[3] == "STOP", "expect data ende at STOP bits, instead found {found[3]}"
     else:
         raise NotImplementedError("False Positive, channel data detected")
 
 
+@pytest.mark.parametrize("sample", 
+                        #  DMX_1F_SHORT_T
+                         make_testframes(0, [0x00] + [0xFF] * 128, timing=True),
+                         )
 @pytest.mark.parametrize(
-    "detect, inputs",
+    "detect, inputs, timings",
     [
-        pytest.param(True, DMX_1F_SHORT, id="normal"),
-        # pytest.param(True, DMX_BREAK_GLITCH, id="BREAK glitched"),
-        # pytest.param(False, DMX_NO_STOP, id="No Stopbits"),
+        # pytest.param(True, DMX_1F_SHORT,DMX_1F_SHORT_T, id="normal"),
+        pytest.param(
+            True,
+            make_testframes(0, [0x00] + [0xFF] * 128),
+            make_testframes(0, [0x00] + [0xFF] * 128, timing=True),
+            id="128 channel",
+        ),
     ],
 )
-def test_2_5_stopbits(detect, pio_code: PioCode, incoming_signals):
+def test_2_5_stopbits(detect, pio_code: PioCode, incoming_signals, timings: List[TestFrame], sample: TestFrame, inputs: List[TestFrame]):
     # TEST Detect START Bit
-
+    sample_ticks = sample[0]
+    sample_value = sample[1]
     RUN_TO = BP_STOPBITS
-    MAX_TICKS = 350
+    MAX_TICKS = sample_ticks + 350
     state = State()
 
     now = state.clock
 
     def detect_startbit(opcode, state: State):
-        return state.program_counter == RUN_TO or state.clock > now + MAX_TICKS
+        # only stop after the start of the desired sample time
+        clear_RX_fifo(state, len(timings) -1)
+        return (
+            state.program_counter == RUN_TO and state.clock >= sample_ticks
+        ) or state.clock > now + MAX_TICKS
+        # return state.program_counter == RUN_TO or state.clock > now + MAX_TICKS
 
     emu = emulate(
         pio_code,
@@ -266,5 +283,8 @@ def test_2_5_stopbits(detect, pio_code: PioCode, incoming_signals):
     if steps:
         state = steps[-1][1]
     print(state)
+    found = get_test_pulse(inputs, state)
     assert state.program_counter == RUN_TO, "stop bit(s) not detected"
     assert state.pin_values & 0b0000_0001 == 0b0000_0001, "Pin 0 DMX RX should be high"
+    assert found, "timing not found in inputs"
+    assert found[3] == "STOP", "other signal detected STOP bit, instead found {found[3]}"
