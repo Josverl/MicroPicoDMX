@@ -9,22 +9,36 @@ if TYPE_CHECKING:
 
 
 # fmt: off
-@asm_pio()
+@asm_pio(
+        in_shiftdir=PIO.SHIFT_RIGHT,
+        sideset_init=(PIO.OUT_LOW,PIO.OUT_LOW)
+        
+)
 def dmx_receive():
-    """PIO program to receive a DMX Universe frame of 512 channels."""
+    """
+    PIO program to receive a DMX Universe frame of 512 channels.
+
+    Input pins: 1
+    Sideset Output pins: 2
+    
+    The DMX protocol is a serial protocol that uses a single wire to transmit data.
+
+    This version of the prgram uses two sideset pins to provide debug signals 
+    that can be used to monitor the program on a logic analyser or scope
+    """
     # Constants
     dmx_bit = 4  # As DMX has a baudrate of 250.000kBaud, a single bit is 4us
 
     # Break loop
     # Receiver DMX break signal is 88us, so we need to loop 22 times to get 88us
     label("break_reset")
-    set(x, 29)                          # 0
+    set(x, 29).side(0b11)                          # 0
 
     label("break_loop")                 # BREAK = low for 88us
     jmp(pin, "break_reset")             # 1 | Go back to start if pin goes high during BREAK
     jmp(x_dec, "break_loop")        [1] # 2 | wait until BREAK time over (22 loops * 4us = 88us)
     
-    wait(1, pin, 0)                     # 3 | wait for the Mark-After-Break (MAB)
+    wait(1, pin, 0).side(0b01)                     # 3 | wait for the Mark-After-Break (MAB)
 
     # Data loop
     # First start bit   - no need to detect end of frame
@@ -33,20 +47,59 @@ def dmx_receive():
     set(x, 7)                       [3] # 5 | 7 more bit;  skip to halfway first bit
 
     label("bitloop")
-    in_(pins, 1)                    [1] # 6 Shift data bit into ISR
-    jmp(x_dec, "bitloop")           [1] # 7 Loop 8 times, each loop iteration is 4us
+    in_(pins, 1).side(0b10)                       # 6 Shift data bit into ISR
+    jmp(x_dec, "bitloop").side(0b00)           [2] # 7 Loop 8 times, each loop iteration is 4us
 
     # Stop bits
-    wait(1, pin, 0)                 [3]  # 8 Wait for pin to go high for stop bit-1
-    wait(1, pin, 0)                      # 9 Wait for pin to go high for stop bit-2
+    wait(1, pin, 0)                     # 8 Wait for pin to go high for stop bit-1
+    nop().side(0b11)               [2]  # 9 Wait for pin to go high for stop bit-2
+    # wait(1, pin, 0)                      # 9 Wait for pin to go high for stop bit-2
     #  in_(null, 24 )                      
     # TODO check if STOP bits are at 8us long
     # if longer than 8 us then we are at the end of the frame  MARK Time after Slot 512
     # this can be up to  1 second - which may be too long for a PIO program to count
-    push()                           [0]  # 9
+    push().side(0b10)                           # 9
+    jmp("wrap_target")             
 # fmt: on
 
+def receive_example():
+    from array import array
+    
+    pin_dmx_tx = Pin(15, Pin.OUT)  # send data to the DMX bus
+    pin_dmx_rx = Pin(14, Pin.IN, pull=Pin.PULL_DOWN)  # receive data from the DMX bus
+    sig_max485_send = Pin(12, Pin.OUT, Pin.PULL_DOWN)  # enable/disable the MAX485 chip
+    p0 = Pin(0, Pin.OUT)  # debug pin
+    p1 = Pin(0, Pin.OUT)  # debug pin
 
+    # create a state machine for receiving DMX data
+    machine_nr = 1
+    universe = array("B", [0] + [0] * (512))  # 1 start code + 512 channels
+    sm_dmx_rx = StateMachine(
+        machine_nr,
+        dmx_receive,
+        freq=1_000_000,
+        in_base=pin_dmx_rx,
+        jmp_pin=pin_dmx_rx,
+        sideset_base=p0,
+    )
+    
+    def rx_universe(universe):
+        """
+        read a received DMX universe into a bytearray
+        Slow and careful version - on full speed will get every other DMX-Frame
+        """
+        sm_dmx_rx.active(0)
+        # clear the fifo
+        while sm_dmx_rx.rx_fifo():
+            _ = sm_dmx_rx.get()
+        sm_dmx_rx.restart()
+        sm_dmx_rx.active(1)
+        sm_dmx_rx.get(universe, 24)  # get the first byte, which is the start code
+        sm_dmx_rx.active(0)
+        return universe
+    
+    rx_universe(universe)
+    print(universe[:10])
 
 @asm_pio(
     set_init=PIO.OUT_LOW,
@@ -130,7 +183,4 @@ def send_example():
 
 
 
-def example_receive():
-    pin_dmx_tx = Pin(15, Pin.OUT)  # send data to the DMX bus
-    pin_dmx_rx = Pin(14, Pin.IN, pull=Pin.PULL_DOWN)  # receive data from the DMX bus
-    sig_max485_send = Pin(12, Pin.OUT, Pin.PULL_DOWN)  # enable/disable the MAX485 chip
+

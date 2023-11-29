@@ -24,7 +24,8 @@ pin_dmx_tx = Pin(15, Pin.OUT)  # send data to the DMX bus
 pin_dmx_rx = Pin(14, Pin.IN, pull=Pin.PULL_DOWN)  # receive data from the DMX bus
 
 max485_send = Pin(12, Pin.OUT, Pin.PULL_DOWN)  # switch send/receive for the MAX485 chip
-
+led = Pin("LED", Pin.OUT)
+led.on()
 
 class DMX:
     """
@@ -108,7 +109,7 @@ class DMX:
 
 
 #####################################################################
-p1 = Pin(1, Pin.OUT, value=0)  # Debugging aid to sync view on the the logic analyzer
+p12 = Pin(12, Pin.OUT, value=0)  # Debugging aid to sync view on the the logic analyzer
 
 
 size = 512
@@ -122,10 +123,14 @@ dmx.set_channel(0, 123)  # test Start Code
 
 
 while 1:
-    p1.on()
+    p12.on()
+    led.toggle()
     dmx.send()
-
-    p1.off()
-    time.sleep_ms(300)
+    print( "sent universe", dmx.universe[0])
+    dmx.universe[0] += 1
+    if dmx.universe[0] > 255:
+        dmx.universe[0] = 0
+    p12.off()
+    # time.sleep_ms(300)
 
 
